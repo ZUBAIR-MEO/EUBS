@@ -110,6 +110,6 @@ except Exception as e:
  
 # Display sklearn version for debugging
 
-st.sidebar.text(f"Scikit-learn version
+
 
  
