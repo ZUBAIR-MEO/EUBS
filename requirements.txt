@@ -1,0 +1,4 @@
+streamlit
+joblib
+numpy
+scikit-learn  # Ensures compatibility with joblib if the model was trained using scikit-learn
