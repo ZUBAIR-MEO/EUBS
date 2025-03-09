@@ -107,9 +107,3 @@ try:
 except Exception as e:
 
     st.warning(f"⚠️ Could not load dataset: {e}")
- 
-# Display sklearn version for debugging
-
-
-
- 
