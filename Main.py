@@ -1,109 +1,109 @@
 import streamlit as st
-
 import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error
+import pickle
+from io import StringIO
 
-import joblib
+# Function to train the model
+def train_model(data, target_variable):
+    # Separate features and target variable
+    features = data.drop(columns=[target_variable])
+    target = data[target_variable]
+    
+    # Standardize the features using StandardScaler
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features)
 
-import numpy as np
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(features_scaled, target, test_size=0.3, random_state=42)
 
-import os
+    # Train a RandomForest model for regression (House Price prediction)
+    model = RandomForestRegressor(random_state=42)
+    model.fit(X_train, y_train)
 
-import matplotlib.pyplot as plt
+    # Make predictions
+    y_pred = model.predict(X_test)
 
-import seaborn as sns
- 
-# Ensure scikit-learn compatibility
+    # Evaluate the model
+    mae = mean_absolute_error(y_test, y_pred)
+    
+    # Save the trained model to disk
+    with open('house_price_model.pkl', 'wb') as f:
+        pickle.dump(model, f)
+        
+    return model, mae
 
-import sklearn
- 
-# Load the trained model safely
+# Streamlit User Interface
+st.title("House Price Prediction Model")
 
-@st.cache_resource
+# File uploader for dataset
+uploaded_file = st.file_uploader("Upload your dataset (CSV file)", type=["csv"])
 
-def load_model():
+if uploaded_file is not None:
+    # Load the uploaded CSV file into a DataFrame
+    dataframe = pd.read_csv(uploaded_file)
 
+    # Show the uploaded data
+    st.write("Preview of the dataset:", dataframe.head())
+
+    # Let the user select the target variable (column to predict)
+    target_variable = st.selectbox("Select the target variable (column to predict)", dataframe.columns)
+    
+    # Train the model
+    if st.button("Train Model"):
+        # Train the model using the selected target variable
+        model, mae = train_model(dataframe, target_variable)
+
+        # Display the results
+        st.write(f"Model trained successfully!")
+        st.write(f"Mean Absolute Error (MAE) of the model: {mae:.2f}")
+
+        # Show the feature importance from the trained model
+        feature_importance = pd.DataFrame({
+            'Feature': dataframe.drop(columns=[target_variable]).columns,
+            'Importance': model.feature_importances_
+        }).sort_values(by='Importance', ascending=False)
+        
+        st.write("Feature Importance:", feature_importance)
+
+        # Option to download the trained model
+        st.write("Download the trained model:")
+        with open('house_price_model.pkl', 'rb') as f:
+            st.download_button(
+                label="Download Model",
+                data=f,
+                file_name="house_price_model.pkl",
+                mime="application/octet-stream"
+            )
+
+# Prediction on new data
+st.subheader("Predict on New Data")
+
+# Option to upload new data for prediction
+new_data = st.file_uploader("Upload new data for prediction (CSV file)", type=["csv"])
+
+if new_data is not None:
+    # Load the new data to make predictions
+    new_dataframe = pd.read_csv(new_data)
+    
+    # Show the new data preview
+    st.write("Preview of new data:", new_dataframe.head())
+
+    # Make predictions if the model is available
     try:
+        with open('house_price_model.pkl', 'rb') as f:
+            model = pickle.load(f)
+            
+        # Select features based on the training data
+        features = new_dataframe[model.feature_importances_].columns
+        features_scaled = StandardScaler().fit_transform(new_dataframe[features])
 
-        model = joblib.load('house_price_model.pkl')
-
-        return model
-
-    except Exception as e:
-
-        st.error(e)
-
-        return None
- 
-# Load model
-
-model = load_model()
- 
-# Streamlit App UI
-
-st.title("🏡 House Price Prediction App")
-
-st.write("Enter house details to predict the sale price.")
- 
-# Sidebar for user input
-
-st.sidebar.header("🔹 Input House Features")
- 
-# Define user input fields
-
-lot_area = st.sidebar.number_input("Lot Area", min_value=500, max_value=100000, step=100)
-
-overall_quality = st.sidebar.selectbox("Overall Quality", options=list(range(1, 11)))
- 
-# Ensure model is loaded
-
-if model:
-
-    # Prepare input features (Ensure column names match training data)
-
-    feature_names = ['LotArea', 'OverallQual']  # Adjust based on training data
-
-    features = pd.DataFrame([[lot_area, overall_quality]], columns=feature_names)
- 
-    # Predict when the user presses the button
-
-    if st.sidebar.button("🔍 Predict Price"):
-
-        try:
-
-            prediction = model.predict(features)[0]
-
-            st.sidebar.success(f"🏠 **Estimated Sale Price:** ${prediction:,.2f}")
-
-        except Exception as e:
-
-            st.sidebar.error(f"⚠️ Prediction Error: {e}")
- 
-# Display dataset information
-
-st.subheader("📊 Dataset Overview")
-
-try:
-
-    train = pd.read_csv('train.csv')  # Ensure this file is available
-
-    st.write(train.head())
- 
-    # Plot SalePrice distribution
-
-    st.subheader("📉 Sale Price Distribution")
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    sns.histplot(train['SalePrice'], kde=True, bins=30, ax=ax)
-
-    ax.set_title("Distribution of Sale Price")
-
-    ax.set_xlabel("Sale Price")
-
-    ax.set_ylabel("Frequency")
-
-    st.pyplot(fig)
-
-except Exception as e:
-
-    st.warning(f"⚠️ Could not load dataset: {e}")
+        predictions = model.predict(features_scaled)
+        
+        # Display predictions
+        st.write("Predictions on new data:", predictions)
+    except FileNotFoundError:
+        st.error("Model is not trained yet. Please train the model first.")
