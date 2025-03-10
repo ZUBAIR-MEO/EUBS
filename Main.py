@@ -1,80 +1,109 @@
 import streamlit as st
+
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-import numpy as np
+
 import joblib
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-# Load dataset
-@st.cache_data
-def load_data():
-    df = pd.read_csv("train.csv")
-    return df
+import numpy as np
 
-df = load_data()
+import os
 
-# Load pre-trained model
+import matplotlib.pyplot as plt
+
+import seaborn as sns
+ 
+# Ensure scikit-learn compatibility
+
+import sklearn
+ 
+# Load the trained model safely
+
 @st.cache_resource
+
 def load_model():
-    model = joblib.load("house_price_AR_model.pkl")
-    return model
+
+    try:
+
+        model = joblib.load('HP_AR_model.pkl')
+
+        return model
+
+    except Exception as e:
+
+        st.error(e)
+
+        return None
+ 
+# Load model
 
 model = load_model()
+ 
+# Streamlit App UI
 
-# Sidebar options
-st.sidebar.header("Navigation")
-page = st.sidebar.radio("Go to", ["Overview", "Data Visualization", "Price Prediction"])
+st.title("🏡 House Price Prediction App")
 
-# Overview Page
-if page == "Overview":
-    st.title("House Prices Data Analysis")
-    st.write("### Dataset Overview")
-    st.write(df.head())
-    
-    st.write("### Missing Values")
-    missing_values = df.isnull().sum()
-    missing_values = missing_values[missing_values > 0].sort_values(ascending=False)
-    st.write(missing_values)
-    
-# Data Visualization Page
-elif page == "Data Visualization":
-    st.title("Data Visualization")
-    numeric_features = df.select_dtypes(include=[np.number]).columns.tolist()
-    feature = st.selectbox("Select a feature", numeric_features, index=numeric_features.index("SalePrice"))
-    
-    fig, ax = plt.subplots(figsize=(8, 5))
-    sns.histplot(df[feature].dropna(), bins=30, kde=True, ax=ax)
+st.write("Enter house details to predict the sale price.")
+ 
+# Sidebar for user input
+
+st.sidebar.header("🔹 Input House Features")
+ 
+# Define user input fields
+
+lot_area = st.sidebar.number_input("Lot Area", min_value=500, max_value=100000, step=100)
+
+overall_quality = st.sidebar.selectbox("Overall Quality", options=list(range(1, 11)))
+ 
+# Ensure model is loaded
+
+if model:
+
+    # Prepare input features (Ensure column names match training data)
+
+    feature_names = ['LotArea', 'OverallQual']  # Adjust based on training data
+
+    features = pd.DataFrame([[lot_area, overall_quality]], columns=feature_names)
+ 
+    # Predict when the user presses the button
+
+    if st.sidebar.button("🔍 Predict Price"):
+
+        try:
+
+            prediction = model.predict(features)[0]
+
+            st.sidebar.success(f"🏠 **Estimated Sale Price:** ${prediction:,.2f}")
+
+        except Exception as e:
+
+            st.sidebar.error(f"⚠️ Prediction Error: {e}")
+ 
+# Display dataset information
+
+st.subheader("📊 Dataset Overview")
+
+try:
+
+    train = pd.read_csv('train.csv')  # Ensure this file is available
+
+    st.write(train.head())
+ 
+    # Plot SalePrice distribution
+
+    st.subheader("📉 Sale Price Distribution")
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    sns.histplot(train['SalePrice'], kde=True, bins=30, ax=ax)
+
+    ax.set_title("Distribution of Sale Price")
+
+    ax.set_xlabel("Sale Price")
+
+    ax.set_ylabel("Frequency")
+
     st.pyplot(fig)
-    
-    st.write("### Correlation Heatmap")
-    fig, ax = plt.subplots(figsize=(10, 6))
-    corr_matrix = df.corr()
-    sns.heatmap(corr_matrix, cmap='coolwarm', annot=False, ax=ax)
-    st.pyplot(fig)
-    
-# Price Prediction Page
-elif page == "Price Prediction":
-    st.title("Predict House Prices")
-    
-    selected_features = ["GrLivArea", "OverallQual", "GarageCars", "TotalBsmtSF"]
-    X = df[selected_features].fillna(0)
-    y = df["SalePrice"]
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    y_pred = model.predict(X_test)
-    
-    st.write(f"Mean Absolute Error: {mean_absolute_error(y_test, y_pred):,.2f}")
-    st.write(f"Mean Squared Error: {mean_squared_error(y_test, y_pred):,.2f}")
-    
-    st.write("### Predict Your Own House Price")
-    input_data = {}
-    for feature in selected_features:
-        input_data[feature] = st.number_input(f"{feature}", value=float(X[feature].median()))
-    
-    input_df = pd.DataFrame([input_data])
-    predicted_price = model.predict(input_df)[0]
-    st.write(f"Predicted House Price: ${predicted_price:,.2f}")
+
+except Exception as e:
+
+    st.warning(f"⚠️ Could not load dataset: {e}")
